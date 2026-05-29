@@ -1208,116 +1208,118 @@ function initQR(){
 // ── 相機掃碼（Safari/Chrome 相容版）──────────────────────────────────────────
 var cameraStream = null;
 var cameraTimer = null;
-var camDetector = null;
 
 function openCamera(){
   var overlay = document.createElement("div");
   overlay.id = "cam-overlay";
-  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.88);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.88);z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;-webkit-tap-highlight-color:transparent";
   overlay.innerHTML =
     '<div style="width:100%;max-width:400px;background:#1a2332;border-radius:16px;overflow:hidden">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1A4B7C">'
     +'<span style="color:#fff;font-size:14px;font-weight:500">📷 對準 QR Code</span>'
-    +'<button onclick="closeCamera()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:20px;padding:4px 14px;cursor:pointer;font-size:13px;font-family:inherit">關閉</button>'
+    +'<button id="cam-close-btn" style="background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:20px;padding:6px 16px;cursor:pointer;font-size:14px;font-family:inherit;-webkit-appearance:none">關閉</button>'
     +'</div>'
-    +'<div style="position:relative;background:#000;min-height:280px">'
-    +'<video id="cam-video" autoplay playsinline muted style="width:100%;max-height:300px;display:block;object-fit:cover"></video>'
+    +'<div style="position:relative;background:#000;min-height:280px;overflow:hidden">'
+    +'<video id="cam-video" autoplay playsinline muted webkit-playsinline style="width:100%;height:280px;display:block;object-fit:cover;background:#000"></video>'
     +'<canvas id="cam-canvas" style="display:none"></canvas>'
-    +'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:190px;height:190px;pointer-events:none">'
-    +'<svg width="190" height="190" style="position:absolute;top:0;left:0"><rect x="1" y="1" width="188" height="188" fill="none" stroke="#2E75B6" stroke-width="2" rx="8"/><line x1="1" y1="40" x2="1" y2="1" stroke="#2E75B6" stroke-width="4"/><line x1="1" y1="1" x2="40" y2="1" stroke="#2E75B6" stroke-width="4"/><line x1="150" y1="1" x2="189" y2="1" stroke="#2E75B6" stroke-width="4"/><line x1="189" y1="1" x2="189" y2="40" stroke="#2E75B6" stroke-width="4"/><line x1="1" y1="150" x2="1" y2="189" stroke="#2E75B6" stroke-width="4"/><line x1="1" y1="189" x2="40" y2="189" stroke="#2E75B6" stroke-width="4"/><line x1="150" y1="189" x2="189" y2="189" stroke="#2E75B6" stroke-width="4"/><line x1="189" y1="150" x2="189" y2="189" stroke="#2E75B6" stroke-width="4"/></svg>'
-    +'</div></div>'
-    +'<div id="cam-status" style="padding:10px 16px;color:#9CA3AF;font-size:12px;text-align:center;min-height:36px">啟動相機中...</div>'
+    +'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:190px;height:190px;pointer-events:none;border:2px solid rgba(46,117,182,.8);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div>'
+    +'</div>'
+    +'<div id="cam-status" style="padding:12px 16px;color:#9CA3AF;font-size:12px;text-align:center;min-height:40px;line-height:1.6">啟動相機中...</div>'
     +'</div>';
   document.body.appendChild(overlay);
-  overlay.addEventListener("click", function(ev){if(ev.target===overlay)closeCamera();});
 
-  // Check BarcodeDetector support
-  if(typeof BarcodeDetector !== "undefined"){
-    BarcodeDetector.getSupportedFormats().then(function(fmts){
-      var hasQR = fmts.indexOf("qr_code") >= 0;
-      startCam(hasQR ? "detector" : "canvas");
-    }).catch(function(){ startCam("canvas"); });
-  } else {
-    startCam("none");
-  }
-}
+  // Close button - attach after element is in DOM
+  document.getElementById("cam-close-btn").addEventListener("click", function(e){
+    e.stopPropagation();
+    closeCamera();
+  });
 
-function startCam(mode){
+  var video = document.getElementById("cam-video");
+  var status = document.getElementById("cam-status");
+
   navigator.mediaDevices.getUserMedia({
-    video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}
+    video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
   }).then(function(stream){
     cameraStream = stream;
-    var video = document.getElementById("cam-video");
-    if(!video){closeCamera();return;}
     video.srcObject = stream;
-    video.play().then(function(){
-      var st = document.getElementById("cam-status");
-      if(st) st.textContent = "相機已啟動，請對準 QR Code";
-      if(mode === "detector") scanWithDetector(video);
-      else if(mode === "canvas") scanWithCanvas(video);
-      else {
-        if(st) st.innerHTML = "此裝置不支援自動辨識<br>請確認 Safari 版本 ≥ 17 或改用 Chrome";
-      }
-    }).catch(function(e){
-      var st = document.getElementById("cam-status");
-      if(st) st.textContent = "相機啟動失敗："+e.message;
-    });
+
+    // Safari needs this sequence
+    video.setAttribute("playsinline","");
+    video.setAttribute("webkit-playsinline","");
+
+    var playPromise = video.play();
+    if(playPromise !== undefined){
+      playPromise.then(function(){
+        if(status) status.textContent = "相機已啟動，請將 QR Code 對準方框";
+        startCanvasScan(video);
+      }).catch(function(e){
+        if(status) status.textContent = "相機啟動失敗："+e.message;
+      });
+    } else {
+      // Older Safari - no promise
+      if(status) status.textContent = "相機已啟動，請將 QR Code 對準方框";
+      setTimeout(function(){ startCanvasScan(video); }, 500);
+    }
   }).catch(function(err){
     var st = document.getElementById("cam-status");
-    if(!st)return;
-    if(err.name==="NotAllowedError") st.textContent="請允許使用相機（點瀏覽器網址列左側的鎖頭）";
-    else st.textContent="無法啟動相機："+err.message;
+    if(!st) return;
+    if(err.name === "NotAllowedError")
+      st.innerHTML = "❌ 相機被拒絕<br>請點網址列左側「Aa」→ 網站設定 → 允許相機";
+    else if(err.name === "NotFoundError")
+      st.textContent = "❌ 找不到相機裝置";
+    else
+      st.textContent = "❌ 相機錯誤：" + err.name;
   });
 }
 
-function scanWithDetector(video){
-  try{
-    camDetector = new BarcodeDetector({formats:["qr_code"]});
-  }catch(e){ scanWithCanvas(video); return; }
-  function tick(){
-    if(!document.getElementById("cam-overlay"))return;
-    if(video.readyState < 3){ cameraTimer=setTimeout(tick,200); return; }
-    camDetector.detect(video).then(function(codes){
-      if(codes.length > 0){ onCamResult(codes[0].rawValue); }
-      else{ cameraTimer = setTimeout(tick, 150); }
-    }).catch(function(e){
-      // Safari sometimes needs canvas fallback
-      scanWithCanvas(video);
-    });
+function startCanvasScan(video){
+  var canvas = document.getElementById("cam-canvas");
+  if(!canvas){ closeCamera(); return; }
+  var ctx = canvas.getContext("2d");
+
+  // Try BarcodeDetector first, fall back to interval-based
+  var detector = null;
+  if(typeof BarcodeDetector !== "undefined"){
+    try{ detector = new BarcodeDetector({formats:["qr_code"]}); }catch(e){}
   }
-  cameraTimer = setTimeout(tick, 300);
+
+  function doScan(){
+    if(!document.getElementById("cam-overlay")) return;
+    if(!video || video.readyState < 2 || video.videoWidth === 0){
+      cameraTimer = setTimeout(doScan, 300);
+      return;
+    }
+    try{
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }catch(e){ cameraTimer = setTimeout(doScan, 300); return; }
+
+    if(detector){
+      detector.detect(canvas).then(function(codes){
+        if(codes && codes.length > 0){
+          onCamResult(codes[0].rawValue);
+        } else {
+          cameraTimer = setTimeout(doScan, 300);
+        }
+      }).catch(function(){
+        // detector.detect(canvas) failed, try ImageBitmap
+        createImageBitmap(canvas).then(function(bmp){
+          detector.detect(bmp).then(function(codes){
+            if(codes && codes.length > 0) onCamResult(codes[0].rawValue);
+            else cameraTimer = setTimeout(doScan, 300);
+          }).catch(function(){ cameraTimer = setTimeout(doScan, 300); });
+        }).catch(function(){ cameraTimer = setTimeout(doScan, 300); });
+      });
+    } else {
+      var st = document.getElementById("cam-status");
+      if(st) st.innerHTML = "此裝置不支援自動辨識 QR Code<br>請改用手機「相機」App 掃描後複製結果貼入搜尋欄";
+      cameraTimer = setTimeout(doScan, 5000);
+    }
+  }
+  cameraTimer = setTimeout(doScan, 600);
 }
 
-function scanWithCanvas(video){
-  var canvas = document.getElementById("cam-canvas");
-  if(!canvas){closeCamera();return;}
-  var ctx = canvas.getContext("2d");
-  if(typeof BarcodeDetector === "undefined"){ 
-    var st=document.getElementById("cam-status");
-    if(st) st.innerHTML="此裝置不支援自動辨識<br>請使用 <strong>Chrome</strong> 或 <strong>Safari 17+</strong>";
-    return;
-  }
-  var det;
-  try{ det = new BarcodeDetector({formats:["qr_code"]}); }catch(e){ return; }
-  function tick(){
-    if(!document.getElementById("cam-overlay"))return;
-    if(video.readyState < 3){ cameraTimer=setTimeout(tick,200); return; }
-    try{
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // Use createImageBitmap on the canvas for Safari compatibility
-      createImageBitmap(canvas).then(function(bmp){
-        det.detect(bmp).then(function(codes){
-          if(codes.length > 0){ onCamResult(codes[0].rawValue); }
-          else{ cameraTimer = setTimeout(tick, 250); }
-        }).catch(function(){ cameraTimer = setTimeout(tick, 250); });
-      }).catch(function(){ cameraTimer = setTimeout(tick, 250); });
-    }catch(e){ cameraTimer = setTimeout(tick, 250); }
-  }
-  cameraTimer = setTimeout(tick, 400);
-}
 
 function onCamResult(val){
   closeCamera();
@@ -1334,17 +1336,13 @@ function onCamResult(val){
 }
 
 function closeCamera(){
+  if(cameraTimer){ clearTimeout(cameraTimer); cameraTimer = null; }
   if(cameraStream){
-    cameraStream.getTracks().forEach(function(t){t.stop();});
+    try{ cameraStream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
     cameraStream = null;
   }
-  if(cameraAnimFrame){
-    cancelAnimationFrame(cameraAnimFrame);
-    clearTimeout(cameraAnimFrame);
-    cameraAnimFrame = null;
-  }
   var overlay = document.getElementById("cam-overlay");
-  if(overlay)overlay.remove();
+  if(overlay) overlay.remove();
 }
 
 function doPrint(){
