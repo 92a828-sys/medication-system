@@ -206,6 +206,12 @@ var sbClsCol=LS.get("sb-ccol")||"class";
 
 var curTab="today";
 var qrCache={}; // stores pre-generated QR SVGs keyed by student id
+var SITE_URL=(function(){
+  // Auto-detect current site URL for QR codes
+  var u=window.location.origin+window.location.pathname;
+  if(u.slice(-1)==="/")u=u.slice(0,-1);
+  return u;
+})();
 var selStuId=null;
 var clsFilter="全部";
 var fMedId="",fSlots=[],fDose="5",fUnit="ml",fRoute="口服",fCold=false,fNote="",fCustom="",fPowder=false,fPowderNote="",fTopical=false,fTopicalNote="";
@@ -244,7 +250,7 @@ function renderToday(){
   h+='<input class="inp" id="scan-input" placeholder="掃 QR Code 或輸入幼兒姓名..." ';
   h+='style="flex:1;min-width:180px;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.3)" ';
   h+='oninput="handleScan(this.value)" onkeydown="if(event.key==\'Enter\')doScanEnter()">';
-  h+='<button class="btn btn-sm" style="background:rgba(255,255,255,.25);color:#fff;border:.5px solid rgba(255,255,255,.4)" onclick="openCamera()">📷 相機掃碼</button>';
+
   h+='<button class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff" onclick="clearScan()">清除</button>';
   h+='</div></div>';
 
@@ -998,6 +1004,14 @@ function handleScan(v){
   if(scanTimer)clearTimeout(scanTimer);
   scanTimer=setTimeout(function(){
     var val=v.trim();if(!val)return;
+    // Handle full URL format (from native camera scan)
+    if(val.indexOf("http")===0){
+      try{
+        var u=new URL(val);
+        var sp=u.searchParams.get("scan");
+        if(sp)val=decodeURIComponent(sp);
+      }catch(e){}
+    }
     // 藥袋 QR Code: COURSE:courseId
     if(val.indexOf("COURSE:")===0){
       var cid=val.slice(7);
@@ -1176,12 +1190,16 @@ function printCourseLabel(cid){
 }
 
 function genQRSvg(data,size){
-  // Generate QR SVG and cache it
   size=size||90;
   if(qrCache[data])return qrCache[data];
   if(typeof QRCode==="undefined")return"";
   try{
-    var q=new QRCode({content:data,padding:2,width:size,height:size,color:"#000000",background:"#ffffff",ecl:"M"});
+    // Convert STU:/COURSE: to full URL so native camera app can open directly
+    var qrContent=data;
+    if(data.indexOf("STU:")===0||data.indexOf("COURSE:")===0){
+      qrContent=SITE_URL+"?scan="+encodeURIComponent(data);
+    }
+    var q=new QRCode({content:qrContent,padding:2,width:size,height:size,color:"#000000",background:"#ffffff",ecl:"M"});
     var svg=q.svg();
     qrCache[data]=svg;
     return svg;
@@ -1387,6 +1405,16 @@ document.head.insertAdjacentHTML("beforeend","<style>.stat-box{text-align:center
 
 document.getElementById("hdr-date").textContent=ROC_DATE;
 render();
+// Handle URL scan parameter (from QR Code scan via native camera)
+(function(){
+  var params=new URLSearchParams(window.location.search);
+  var scanVal=params.get("scan");
+  if(scanVal){
+    // Clean URL without reload
+    window.history.replaceState({},"",window.location.pathname);
+    setTimeout(function(){ handleScan(scanVal); },600);
+  }
+})();
 // Pre-warm QR cache for all students in background
 setTimeout(function(){
   if(typeof QRCode==="undefined")return;
