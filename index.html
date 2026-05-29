@@ -1217,7 +1217,7 @@ function initQR(){
     var el=document.getElementById("qr-"+s.id);
     if(!el)return;
     if(el.querySelector("svg"))return;
-    var svg=genQRSvg("STU:"+s.id,50);
+    var svg=genQRSvg("STU:"+s.id,52);
     if(svg)el.innerHTML=svg;
     else el.textContent="STU:"+s.id;
   });
@@ -1419,7 +1419,7 @@ render();
 // Pre-warm QR cache for all students in background
 setTimeout(function(){
   if(typeof QRCode==="undefined")return;
-  students.forEach(function(s){genQRSvg("STU:"+s.id,120);});
+  students.forEach(function(s){genQRSvg("STU:"+s.id,52);genQRSvg("STU:"+s.id,120);});
 },500);
 </script>
 </body>
