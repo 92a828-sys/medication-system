@@ -205,6 +205,7 @@ var sbNameCol=LS.get("sb-ncol")||"name";
 var sbClsCol=LS.get("sb-ccol")||"class";
 
 var curTab="today";
+var qrCache={}; // stores pre-generated QR SVGs keyed by student id
 var selStuId=null;
 var clsFilter="全部";
 var fMedId="",fSlots=[],fDose="5",fUnit="ml",fRoute="口服",fCold=false,fNote="",fCustom="",fPowder=false,fPowderNote="",fTopical=false,fTopicalNote="";
@@ -1091,14 +1092,8 @@ function printQRPage(){
   // Pre-generate QR SVGs in main window context
   var items="";
   filt.forEach(function(s){
-    var svgHtml="";
-    try{
-      if(typeof QRCode!=="undefined"){
-        var q=new QRCode({content:"STU:"+s.id,padding:2,width:120,height:120,color:"#000000",background:"#ffffff",ecl:"M"});
-        svgHtml=q.svg();
-      }
-    }catch(e){}
-    if(!svgHtml)svgHtml='<div style="font-size:6pt;word-break:break-all;padding:4px;background:#f0f0f0">STU:'+s.id+'</div>';
+    var svgHtml=genQRSvg("STU:"+s.id,120);
+    if(!svgHtml)svgHtml='<p style="font-size:6pt;word-break:break-all;padding:4px">STU:'+s.id+'</p>';
     items+='<div class="qi"><div class="qcode">'+svgHtml+'</div>'
       +'<div class="qn">'+escH(s.name)+'</div><div class="qc">'+escH(s.cls)+'</div>'
       +'<div class="qid">STU:'+s.id+'</div></div>';
@@ -1138,14 +1133,8 @@ function printCourseLabel(cid){
   var mn=c.medName||(c.hasPowder&&c.hasTopical?"藥粉+外用":c.hasPowder?"藥粉":c.hasTopical?"外用":"");
   var slotL=c.slots.map(function(k){var s=SLOTS.find(function(x){return x.k===k;});return s?s.l:k;}).join("、");
   var qrData="COURSE:"+c.id;
-  var labelSvg="";
-  try{
-    if(typeof QRCode!=="undefined"){
-      var qLabel=new QRCode({content:qrData,padding:2,width:128,height:128,color:"#000000",background:"#ffffff",ecl:"M"});
-      labelSvg=qLabel.svg();
-    }
-  }catch(e){}
-  if(!labelSvg)labelSvg='<div style="font-size:7pt;word-break:break-all;padding:6px;background:#f0f0f0">'+qrData+'</div>';
+  var labelSvg=genQRSvg(qrData,128);
+  if(!labelSvg)labelSvg='<p style="font-size:7pt;word-break:break-all;padding:6px">'+qrData+'</p>';
   var schoolDaysHtml=st.calc.schoolDays.map(function(d,i){
     return"<span style='display:inline-block;padding:2px 7px;border-radius:10px;margin:2px;font-size:9pt;background:"+(d<TODAY?"#f3f4f6":d===TODAY?"#EEF2FF":"#E8F5EE")+";color:"+(d<TODAY?"#9CA3AF":d===TODAY?"#7C3AED":"#15803d")+"'>"+(i+1)+". "+rocDateStr(d)+"</span>";
   }).join("");
@@ -1186,16 +1175,32 @@ function printCourseLabel(cid){
   w.document.close();w.focus();
 }
 
+function genQRSvg(data,size){
+  // Generate QR SVG and cache it
+  size=size||90;
+  if(qrCache[data])return qrCache[data];
+  if(typeof QRCode==="undefined")return"";
+  try{
+    var q=new QRCode({content:data,padding:2,width:size,height:size,color:"#000000",background:"#ffffff",ecl:"M"});
+    var svg=q.svg();
+    qrCache[data]=svg;
+    return svg;
+  }catch(e){
+    console.error("QR gen failed:",e);
+    return"";
+  }
+}
+
 function initQR(){
   if(typeof QRCode==="undefined"){console.warn("QRCode not loaded");return;}
   var filt=clsFilter==="全部"?students:students.filter(function(s){return s.cls===clsFilter;});
   filt.forEach(function(s){
     var el=document.getElementById("qr-"+s.id);
-    if(!el)return; if(el.querySelector('svg'))return;
-    try{
-      var q=new QRCode({content:"STU:"+s.id,padding:2,width:90,height:90,color:"#000000",background:"#ffffff",ecl:"M"});
-      el.innerHTML=q.svg();
-    }catch(err){el.textContent="STU:"+s.id;}
+    if(!el)return;
+    if(el.querySelector("svg"))return;
+    var svg=genQRSvg("STU:"+s.id,90);
+    if(svg)el.innerHTML=svg;
+    else el.textContent="STU:"+s.id;
   });
 }
 
@@ -1380,6 +1385,11 @@ document.head.insertAdjacentHTML("beforeend","<style>.stat-box{text-align:center
 
 document.getElementById("hdr-date").textContent=ROC_DATE;
 render();
+// Pre-warm QR cache for all students in background
+setTimeout(function(){
+  if(typeof QRCode==="undefined")return;
+  students.forEach(function(s){genQRSvg("STU:"+s.id,120);});
+},500);
 </script>
 </body>
 </html>
