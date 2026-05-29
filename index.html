@@ -540,9 +540,9 @@ function renderQR(){
   else{
     h+='<div style="display:flex;flex-wrap:wrap;gap:10px">';
     filt.forEach(function(s){
-      h+='<div style="border:.5px solid rgba(0,0,0,.15);border-radius:8px;padding:8px;text-align:center;width:86px;background:#fff">';
-      h+='<div id="qr-'+s.id+'" style="width:60px;height:60px;margin:0 auto 4px"></div>';
-      h+='<div style="font-size:13px;font-weight:500">'+s.name+'</div>';
+      h+='<div style="border:.5px solid rgba(0,0,0,.15);border-radius:6px;padding:5px;text-align:center;width:72px;background:#fff">';
+      h+='<div id="qr-'+s.id+'" style="width:50px;height:50px;margin:0 auto 3px"></div>';
+      h+='<div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+s.name+'</div>';
       h+='<div style="font-size:11px;color:#6B7280">'+s.cls+'</div></div>';
     });
     h+='</div>';
@@ -1108,9 +1108,10 @@ function printQRPage(){
   filt.forEach(function(s){
     var svgHtml=genQRSvg("STU:"+s.id,120);
     if(!svgHtml)svgHtml='<p style="font-size:6pt;word-break:break-all;padding:4px">STU:'+s.id+'</p>';
+    var shortUrl=SITE_URL+"?scan=STU:"+s.id;
     items+='<div class="qi"><div class="qcode">'+svgHtml+'</div>'
       +'<div class="qn">'+escH(s.name)+'</div><div class="qc">'+escH(s.cls)+'</div>'
-      +'<div class="qid">STU:'+s.id+'</div></div>';
+      +'<div class="qid" style="font-size:5pt;color:#aaa;word-break:break-all;margin-top:1mm">'+shortUrl+'</div></div>';
   });
   // Include QR generation via qrcode CDN (needs internet) OR show text code
   var w=window.open("","_blank");
@@ -1216,7 +1217,7 @@ function initQR(){
     var el=document.getElementById("qr-"+s.id);
     if(!el)return;
     if(el.querySelector("svg"))return;
-    var svg=genQRSvg("STU:"+s.id,60);
+    var svg=genQRSvg("STU:"+s.id,50);
     if(svg)el.innerHTML=svg;
     else el.textContent="STU:"+s.id;
   });
